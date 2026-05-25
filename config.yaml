@@ -1,0 +1,35 @@
+server:
+  active: dev
+  node-id: 1 #初始化雪花算法节点（nodeID 0~1023，每个服务唯一）
+  port: 8082
+  email: "canmaxsend@gmail.com"
+Log:
+  Level: debug # Log level: none, error, warn, info, debug
+  Path: ./logs # 日志目录
+  MaxAge: 7 # 日志保留天数
+  Zip: false # 日志是否压缩
+  EncryptKey: "" # 加密密钥(32字符)，为空则不加密
+  BufferSize: 65536 # 异步日志通道缓冲区大小
+  FlushInterval: 5 # 缓冲区刷盘间隔(秒)
+  DropPolicy: drop # drop=丢弃 | block=阻塞等待(100ms超时)
+  ArchiveWorkers: 2 # 压缩归档并发工作数
+database:
+  host: 10.10.25.130
+  port: 5432
+  user: postgres
+  password: wqlMeLMBBJ3
+  dbname: nodes
+  sslmode: disable
+  max-open: 25        # 最大打开连接数
+  max-idle: 10        # 最大空闲连接数
+  max-lifetime: 3600  # 连接最大存活时间(秒)
+  max-idle-time: 300  # 空闲连接最大存活时间(秒)
+telegram:
+  bot-token: 7696853900:AAEKOpqgbvlIxum1mkZYGHu0m4vfQuEKyIk
+  chat-id: -4628993062
+node: #47.121.126.27   47.113.230.23  8.148.65.1 47.120.73.146 8.138.109.152 8.148.65.1
+  url: [http://47.121.24.242:11083/api/nodeNelNet,http://8.148.65.1:1587/api/nodeNelNet,https://www.zuoyoustay.com/api/nodeNelNet,https://go-tool2.actioncloudpro.com/api/nodeNelNet,https://go-tool.actioncloudpro.com/api/nodeNelNet,http://111.170.148.152:8083/api/nodeNelNet,https://go-tool1.actioncloudpro.com/api/nodeNelNet]
+
+task:
+  retention-days: 7  # 数据保留天数，过期数据自动清理
+
