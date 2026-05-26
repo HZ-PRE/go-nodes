@@ -12,7 +12,7 @@
  Target Server Version : 160008 (160008)
  File Encoding         : 65001
 
- Date: 21/05/2026 11:36:37
+ Date: 26/05/2026 10:25:36
 */
 
 
@@ -117,13 +117,13 @@ CACHE 1
   "supplier_id" int8,
   "is_self" int8 NOT NULL DEFAULT 0,
   "origin_domain" varchar(100) COLLATE "pg_catalog"."default",
-  "scope" int2 NOT NULL DEFAULT 0,
+  "scope" int2 NOT NULL DEFAULT '-1'::integer,
   "beian" int2 NOT NULL DEFAULT 0
 )
 ;
 COMMENT ON COLUMN "public"."server_hosts"."app" IS 'app类型';
 COMMENT ON COLUMN "public"."server_hosts"."ssl_at" IS '证书有效期';
-COMMENT ON COLUMN "public"."server_hosts"."scope" IS '0全球，不包含中国内地,1全球,2仅中国内地';
+COMMENT ON COLUMN "public"."server_hosts"."scope" IS '0全球，不包含中国内地,1全球,2仅中国内地,-1未购买套餐';
 COMMENT ON COLUMN "public"."server_hosts"."beian" IS '是否备案';
 
 -- ----------------------------
@@ -208,10 +208,11 @@ CACHE 1
   "supplier_account" varchar(100) COLLATE "pg_catalog"."default" NOT NULL,
   "supplier" varchar(40) COLLATE "pg_catalog"."default" NOT NULL,
   "status" int2 NOT NULL DEFAULT 0,
-  "scope" int2 NOT NULL DEFAULT 0
+  "scope" int2 NOT NULL DEFAULT '-1'::integer,
+  "cdn" int2 NOT NULL DEFAULT 0
 )
 ;
-COMMENT ON COLUMN "public"."server_supplier_apis"."scope" IS '0全球，不包含中国内地,1全球,2仅中国内地';
+COMMENT ON COLUMN "public"."server_supplier_apis"."scope" IS '0全球，不包含中国内地,1全球,2仅中国内地,-1未购买套餐';
 
 -- ----------------------------
 -- Table structure for server_urls
@@ -302,21 +303,21 @@ $BODY$
 -- ----------------------------
 ALTER SEQUENCE "public"."server_bi_tables_id_seq"
 OWNED BY "public"."server_bi_tables"."id";
-SELECT setval('"public"."server_bi_tables_id_seq"', 207613, true);
+SELECT setval('"public"."server_bi_tables_id_seq"', 286365, true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."server_urls_copy1_id_seq"
 OWNED BY "public"."server_hosts"."id";
-SELECT setval('"public"."server_urls_copy1_id_seq"', 111, true);
+SELECT setval('"public"."server_urls_copy1_id_seq"', 168, true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."server_urls_copy1_id_seq1"
 OWNED BY "public"."server_supplier_apis"."id";
-SELECT setval('"public"."server_urls_copy1_id_seq1"', 9, true);
+SELECT setval('"public"."server_urls_copy1_id_seq1"', 24, true);
 
 -- ----------------------------
 -- Alter sequences owned by
