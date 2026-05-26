@@ -276,6 +276,10 @@ func (s *service) PostServerDomain(hosts models.ServerHost) error {
 		if err != nil {
 			return fmt.Errorf("cloudflare 域名代理创建更新失败:%s", err)
 		}
+		err = utils.SetCFCacheRule(dns.ParentKey, rootDomain)
+		if err != nil {
+			return fmt.Errorf("cloudflare gateway规则创建失败:%s", err)
+		}
 		utils.SetCFSSLMode(dns.ParentKey, rootDomain, "flexible")
 		isSsl = false
 	case "namesilo":
