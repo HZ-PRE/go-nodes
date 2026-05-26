@@ -3,6 +3,8 @@ package services
 import (
 	"fmt"
 	"log"
+	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -121,6 +123,13 @@ func (s *service) uploadCDNDomainCert() error {
 			log.Printf("获取根域名失败:%s", supplier.Domain)
 			continue
 		}
+		originDomain := supplier.OriginDomain
+		if strings.Contains(supplier.OriginDomain, ":") {
+			h, _, err := net.SplitHostPort(supplier.OriginDomain)
+			if err == nil {
+				originDomain = h
+			}
+		}
 		dns = utils.DNSRecord{
 			T:            parentSupplier.Supplier,
 			Tc:           supplier.Supplier,
@@ -132,10 +141,10 @@ func (s *service) uploadCDNDomainCert() error {
 			RootDomain:   rootDomain,
 			SubDomain:    strings.Replace(supplier.Domain, "."+rootDomain, "", 1),
 			TTL:          600,
-			OriginDomain: supplier.OriginDomain,
+			OriginDomain: originDomain,
 			Scope:        supplier.Scope,
 			Port:         443,
-			IsDomain:     utils.IsDomain(supplier.OriginDomain),
+			IsDomain:     utils.IsDomain(originDomain),
 			ParentEmail:  email,
 			NowTime:      now,
 		}
@@ -165,11 +174,7 @@ func (s *service) uploadCDNDomainCert() error {
 		case "baidu":
 			continue
 		case "ucloud":
-			err := utils.PostUCloudCDNAndDNS(dns)
-			if err != nil {
-				log.Printf("%s UCloud CDN 源站创建更新失败:%s", supplier.Domain, err)
-				continue
-			}
+			continue
 		case "cloudflare":
 			continue
 		case "namesilo":
@@ -214,7 +219,18 @@ func (s *service) PostServerDomain(hosts models.ServerHost) error {
 	if rootDomain == "" {
 		return fmt.Errorf("获取根域名失败")
 	}
-
+	originPort := 443
+	originDomain := hosts.OriginDomain
+	if strings.Contains(hosts.OriginDomain, ":") {
+		h, portStr, err := net.SplitHostPort(hosts.OriginDomain)
+		if err == nil {
+			originDomain = h
+			originPort, err = strconv.Atoi(portStr)
+			if err != nil {
+				return fmt.Errorf("获取源站端口失败: %w", err)
+			}
+		}
+	}
 	now := time.Now()
 	dns := utils.DNSRecord{
 		T:            parentSupplier.Supplier,
@@ -227,14 +243,15 @@ func (s *service) PostServerDomain(hosts models.ServerHost) error {
 		RootDomain:   rootDomain,
 		SubDomain:    strings.Replace(hosts.Domain, "."+rootDomain, "", 1),
 		TTL:          600,
-		OriginDomain: hosts.OriginDomain,
+		OriginDomain: originDomain,
 		Scope:        hosts.Scope,
 		Port:         443,
-		IsDomain:     utils.IsDomain(hosts.OriginDomain),
+		IsDomain:     utils.IsDomain(originDomain),
 		ParentEmail:  email,
 		NowTime:      now,
 	}
 	isSsl := true
+	var retErr error
 	switch supplier.Supplier {
 	case "ali":
 		err = utils.PostAliCdnDomain(dns)
@@ -281,6 +298,16 @@ func (s *service) PostServerDomain(hosts models.ServerHost) error {
 			return fmt.Errorf("cloudflare gateway规则创建失败:%s", err)
 		}
 		utils.SetCFSSLMode(dns.ParentKey, rootDomain, "flexible")
+		if 443 != originPort && 80 != originPort {
+			err = utils.SetCFOriginPortForSubdomain(dns.ParentKey, rootDomain, dns.SubDomain, int32(originPort))
+			if err != nil {
+				return fmt.Errorf("访问源站端口（%d）配置失败:%s", originPort, err)
+			}
+		}
+		err = utils.SetCFOriginHostHeaderForSubdomain(dns.ParentKey, rootDomain, dns.SubDomain, dns.OriginDomain)
+		if err != nil {
+			retErr = fmt.Errorf("（域名已经成功代理，此错误可忽略）cloudflare origin host header配置失败(套餐权限不足，仅Enterprise套餐提供。升级计划来启用此功能)，请手动去源服务器配置添加代理域名:%s", err)
+		}
 		isSsl = false
 	case "namesilo":
 		return fmt.Errorf("namesilo云DNS不支持API添加TXT记录，无法验证CDN域名所有者")
@@ -297,7 +324,11 @@ func (s *service) PostServerDomain(hosts models.ServerHost) error {
 		}
 		hosts.SslAt = time
 	}
-	return s.repo.PostServerHost(hosts)
+	err = s.repo.PostServerHost(hosts)
+	if err != nil {
+		return err
+	}
+	return retErr
 }
 func (s *service) PutServerHostByDomain(domain []string) error {
 	return s.repo.PutServerHostByDomain(domain)

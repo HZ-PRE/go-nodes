@@ -136,6 +136,66 @@ func findCFCacheRuleset(token, zoneID string) (*cFRuleset, error) {
 
 	return nil, nil
 }
+func SetCFOriginPortForSubdomain(token, rootDomain, subDomain string, port int32) error {
+	zoneID, err := getCFZoneID(token, rootDomain)
+	if err != nil {
+		return err
+	}
+
+	hostName := subDomain + "." + rootDomain
+	expression := fmt.Sprintf(`http.host eq "%s"`, hostName)
+
+	body := map[string]any{
+		"name":  "set origin port for " + hostName,
+		"kind":  "zone",
+		"phase": "http_request_origin",
+		"rules": []map[string]any{
+			{
+				"ref":         "set_origin_port_" + strings.ReplaceAll(subDomain, ".", "_"),
+				"description": fmt.Sprintf("Set origin port %d for %s", port, hostName),
+				"expression":  expression,
+				"action":      "route",
+				"action_parameters": map[string]any{
+					"origin": map[string]any{
+						"port": port,
+					},
+				},
+			},
+		},
+	}
+
+	url := fmt.Sprintf("%s/zones/%s/rulesets", cloudflareAPI, zoneID)
+	return cfRequest(token, http.MethodPost, url, body, nil)
+}
+func SetCFOriginHostHeaderForSubdomain(token, rootDomain, subDomain, originHost string) error {
+	zoneID, err := getCFZoneID(token, rootDomain)
+	if err != nil {
+		return err
+	}
+
+	hostName := subDomain + "." + rootDomain
+	expression := fmt.Sprintf(`http.host eq "%s"`, hostName)
+
+	body := map[string]any{
+		"name":  "set origin host header for " + hostName,
+		"kind":  "zone",
+		"phase": "http_request_origin",
+		"rules": []map[string]any{
+			{
+				"ref":         "set_origin_host_header_" + strings.ReplaceAll(subDomain, ".", "_"),
+				"description": "Set origin Host header for " + hostName,
+				"expression":  expression,
+				"action":      "route",
+				"action_parameters": map[string]any{
+					"host_header": originHost,
+				},
+			},
+		},
+	}
+
+	url := fmt.Sprintf("%s/zones/%s/rulesets", cloudflareAPI, zoneID)
+	return cfRequest(token, http.MethodPost, url, body, nil)
+}
 func SetCFCacheRule(token, rootDomain string) error {
 	zoneID, err := getCFZoneID(token, rootDomain)
 	if err != nil {
