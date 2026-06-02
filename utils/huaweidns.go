@@ -413,10 +413,26 @@ func updateHuaweiCDNConfig(client *cdn.CdnClient, dns DNSRecord) error {
 		originProtocol = "https"
 	}
 	zipType := tea.String(".html,.ts,.7z,.avi,.avif,.apk,.bin,.bmp,.bz2,.class,.css,.csv,.doc,.docx,.dmg,.ejs,.eot,.eps,.exe,.flac,.gif,.gz,.ico,.iso,.jar,.jpg,.jpeg,.js,.mid,.midi,.mkv,.mp3,.mp4,.ogg,.otf,.pdf,.pict,.pls,.png,.ppt,.pptx,.ps,.rar,.svg,.svgz,.swf,.tar,.tif,.tiff,.ttf,.webm,.webp,.woff,.woff2,.xls,.xlsx,.zip,.zst")
+	httpPort, httpsPort := huaweiCDNOriginPorts(dns.Port)
+	sourceWeight := int32(100)
+	businessType := "web"
+
 	req := &cdnmodel.UpdateDomainFullConfigRequest{
 		DomainName: dns.Domain,
 		Body: &cdnmodel.ModifyDomainConfigRequestBody{
 			Configs: &cdnmodel.Configs{
+				BusinessType: &businessType,
+				Sources: &[]cdnmodel.SourcesConfig{
+					{
+						OriginAddr: dns.OriginDomain,
+						HostName:   &dns.OriginDomain,
+						OriginType: huaweiCDNOriginTypeValue(dns.IsDomain),
+						Priority:   70,
+						Weight:     &sourceWeight,
+						HttpPort:   &httpPort,
+						HttpsPort:  &httpsPort,
+					},
+				},
 				// 回源方式
 				OriginProtocol: &originProtocol,
 				// Range 回源
@@ -529,32 +545,9 @@ func updateHuaweiCDNOrigin(dns DNSRecord) (string, error) {
 			return "", err
 		}
 	}
-	httpPort, httpsPort := huaweiCDNOriginPorts(dns.Port)
-	sourceWeight := int32(100)
-	businessType := "web"
-	req := &cdnmodel.UpdateDomainFullConfigRequest{
-		DomainName: dns.Domain,
-		Body: &cdnmodel.ModifyDomainConfigRequestBody{
-			Configs: &cdnmodel.Configs{
-				BusinessType: &businessType,
-				Sources: &[]cdnmodel.SourcesConfig{
-					{
-						OriginAddr: dns.OriginDomain,
-						HostName:   &dns.OriginDomain,
-						OriginType: huaweiCDNOriginTypeValue(dns.IsDomain),
-						Priority:   70,
-						Weight:     &sourceWeight,
-						HttpPort:   &httpPort,
-						HttpsPort:  &httpsPort,
-					},
-				},
-			},
-		},
-	}
-
-	_, err = client.UpdateDomainFullConfig(req)
+	err = updateHuaweiCDNConfig(client, dns)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("update huawei cdn config failed: %w", err)
 	}
 	cname, err := getHuaweiCDNCname(client, dns.Domain)
 	if err != nil {
