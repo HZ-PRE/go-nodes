@@ -297,6 +297,10 @@ func (s *service) PostServerDomain(hosts models.ServerHost) error {
 		if err != nil {
 			return fmt.Errorf("cloudflare gateway规则创建失败:%s", err)
 		}
+		err = utils.SetCFRateLimitRule(dns.ParentKey, rootDomain)
+		if err != nil {
+			return fmt.Errorf("cloudflare 速率限制规则创建失败:%s", err)
+		}
 		utils.SetCFSSLMode(dns.ParentKey, rootDomain, "flexible")
 		if 443 != originPort && 80 != originPort {
 			err = utils.SetCFOriginPortForSubdomain(dns.ParentKey, rootDomain, dns.SubDomain, int32(originPort))
@@ -306,7 +310,7 @@ func (s *service) PostServerDomain(hosts models.ServerHost) error {
 		}
 		err = utils.SetCFOriginHostHeaderForSubdomain(dns.ParentKey, rootDomain, dns.SubDomain, dns.OriginDomain)
 		if err != nil {
-			retErr = fmt.Errorf("（域名已经成功代理，此错误可忽略）cloudflare origin host header配置失败(套餐权限不足，仅Enterprise套餐提供。升级计划来启用此功能)，请手动去源服务器配置添加代理域名:%s", err)
+			retErr = fmt.Errorf("此错误可忽略,（域名已经成功代理）cloudflare origin host header配置失败(套餐权限不足，仅Enterprise套餐提供。升级计划来启用此功能)，请手动去源服务器配置添加代理域名:%s", err)
 		}
 		isSsl = false
 	case "namesilo":
