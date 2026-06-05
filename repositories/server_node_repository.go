@@ -40,7 +40,7 @@ func (r *repository) UpdateServersNodeToInIp() error {
 }
 func (r *repository) GetServerNodes() ([]vo.ServerNodeVo, error) {
 	rows := make([]vo.ServerNodeVo, 0)
-	query := "SELECT n.zz_app,n.id,n.in_ip,n.out_ip,n.note,n.city,n.in_ip_port,n.in_ip_pwd,n.in_ip_user,n.out_ip_port,n.out_ip_pwd,n.out_ip_user,n.dw,n.created_at,n.updated_at,n.device,n.is_use,STRING_AGG(DISTINCT concat(s.app, s.name), ',') AS names FROM server_nodes n LEFT JOIN servers s ON n.out_ip = s.out_host GROUP BY n.zz_app,n.id,n.in_ip,n.out_ip,n.note,n.city,n.in_ip_port,n.in_ip_pwd,n.in_ip_user,n.out_ip_port,n.out_ip_pwd,n.out_ip_user,n.dw,n.created_at,n.updated_at,n.device,n.is_use ORDER BY updated_at DESC"
+	query := "SELECT n.zz_app,n.id,n.in_ip,n.out_ip,n.note,n.city,n.in_ip_port,n.in_ip_pwd,n.in_ip_user,n.out_ip_port,n.out_ip_pwd,n.out_ip_user,n.dw,n.created_at,n.updated_at,n.device,n.is_use,n.is_xray,STRING_AGG(DISTINCT concat(s.app, s.name), ',') AS names FROM server_nodes n LEFT JOIN servers s ON n.out_ip = s.out_host GROUP BY n.zz_app,n.id,n.in_ip,n.out_ip,n.note,n.city,n.in_ip_port,n.in_ip_pwd,n.in_ip_user,n.out_ip_port,n.out_ip_pwd,n.out_ip_user,n.dw,n.created_at,n.updated_at,n.device,n.is_use,n.is_xray ORDER BY updated_at DESC"
 	err := database.DB.Raw(query).Scan(&rows).Error
 	return rows, err
 }
