@@ -301,7 +301,10 @@ func (s *service) PostServerDomain(hosts models.ServerHost) error {
 		if err != nil {
 			return fmt.Errorf("cloudflare 速率限制规则创建失败:%s", err)
 		}
-		utils.SetCFSSLMode(dns.ParentKey, rootDomain, "flexible")
+		err = utils.SetCFSSLMode(dns.ParentKey, rootDomain, "flexible")
+		if err != nil {
+			return fmt.Errorf("cloudflare SSL模式配置失败:%s", err)
+		}
 		if 443 != originPort && 80 != originPort {
 			err = utils.SetCFOriginPortForSubdomain(dns.ParentKey, rootDomain, dns.SubDomain, int32(originPort))
 			if err != nil {

@@ -238,7 +238,10 @@ func upsertCFRulesetByPhase(token, zoneID, phase, existsLog, createLog string, b
 		fmt.Println(createLog)
 		return createCFRuleset(token, zoneID, body, nil)
 	}
+	if body["name"] != nil || ruleset.Name != body["name"] {
+		body["name"] = ruleset.Name
 
+	}
 	fmt.Printf("%s: %s\n", existsLog, ruleset.ID)
 	reqURL := cfURL(fmt.Sprintf("/zones/%s/rulesets/%s", zoneID, ruleset.ID), nil)
 	return cfRequest(token, http.MethodPut, reqURL, body, nil)
