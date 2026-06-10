@@ -51,6 +51,21 @@ type cFRuleset struct {
 	Kind        string `json:"kind"`
 	Phase       string `json:"phase"`
 }
+type cFRule struct {
+	ID          string `json:"id"`
+	Ref         string `json:"ref"`
+	Description string `json:"description"`
+	Expression  string `json:"expression"`
+	Action      string `json:"action"`
+}
+
+type cFOriginRuleset struct {
+	ID    string   `json:"id"`
+	Name  string   `json:"name"`
+	Kind  string   `json:"kind"`
+	Phase string   `json:"phase"`
+	Rules []cFRule `json:"rules"`
+}
 
 func cfRequest(token, method, url string, body any, out any) error {
 	var reader io.Reader
@@ -186,35 +201,234 @@ func cfRuleRef(prefix, name string) string {
 	return prefix + strings.ReplaceAll(name, ".", "_")
 }
 
-func SetCFOriginPortForSubdomain(token, rootDomain, subDomain string, port int32) error {
-	zoneID, err := getCFZoneID(token, rootDomain)
+func getCFOriginEntrypointRuleset(token, zoneID string) (*cFOriginRuleset, error) {
+	reqURL := cfURL(
+		fmt.Sprintf(
+			"/zones/%s/rulesets/phases/%s/entrypoint", zoneID, cfPhaseOrigin,
+		),
+		nil,
+	)
+
+	var rs cFOriginRuleset
+
+	err := cfRequest(
+		token,
+		http.MethodGet,
+		reqURL,
+		nil,
+		&rs,
+	)
+
+	if err != nil {
+		return nil, nil
+	}
+
+	if rs.ID == "" {
+		return nil, nil
+	}
+
+	return &rs, nil
+}
+func createCFOriginEntrypointRuleset(token, zoneID string) (*cFOriginRuleset, error) {
+	body := map[string]any{
+		"name":  "Origin Rules",
+		"kind":  "zone",
+		"phase": cfPhaseOrigin,
+		"rules": []any{},
+	}
+
+	reqURL := cfURL(
+		fmt.Sprintf(
+			"/zones/%s/rulesets",
+			zoneID,
+		),
+		nil,
+	)
+
+	var rs cFOriginRuleset
+
+	err := cfRequest(
+		token,
+		http.MethodPost,
+		reqURL,
+		body,
+		&rs,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &rs, nil
+}
+func createOriginRule(token, zoneID, rulesetID string, rule map[string]any) error {
+	reqURL := cfURL(
+		fmt.Sprintf(
+			"/zones/%s/rulesets/%s/rules",
+			zoneID,
+			rulesetID,
+		),
+		nil,
+	)
+
+	return cfRequest(
+		token,
+		http.MethodPost,
+		reqURL,
+		rule,
+		nil,
+	)
+}
+func findRuleByRef(
+	rs *cFOriginRuleset,
+	ref string,
+) *cFRule {
+
+	for i := range rs.Rules {
+		if rs.Rules[i].Ref == ref {
+			return &rs.Rules[i]
+		}
+	}
+
+	return nil
+}
+func updateOriginRule(
+	token,
+	zoneID,
+	rulesetID,
+	ruleID string,
+	rule map[string]any,
+) error {
+
+	reqURL := cfURL(
+		fmt.Sprintf(
+			"/zones/%s/rulesets/%s/rules/%s",
+			zoneID,
+			rulesetID,
+			ruleID,
+		),
+		nil,
+	)
+
+	return cfRequest(
+		token,
+		http.MethodPut,
+		reqURL,
+		rule,
+		nil,
+	)
+}
+func UpsertCFOriginRule(
+	token,
+	zoneID string,
+	rule map[string]any,
+) error {
+
+	ref, _ := rule["ref"].(string)
+
+	rs, err := getCFOriginEntrypointRuleset(
+		token,
+		zoneID,
+	)
+
 	if err != nil {
 		return err
 	}
 
-	hostName := cfSubdomainHost(rootDomain, subDomain)
-	body := map[string]any{
-		"name":  "set origin port for " + hostName,
-		"kind":  "zone",
-		"phase": cfPhaseOrigin,
-		"rules": []map[string]any{
-			{
-				"ref":         cfRuleRef("set_origin_port_", subDomain),
-				"description": fmt.Sprintf("Set origin port %d for %s", port, hostName),
-				"expression":  fmt.Sprintf(`http.host eq "%s"`, hostName),
-				"action":      "route",
-				"action_parameters": map[string]any{
-					"origin": map[string]any{
-						"port": port,
-					},
-				},
+	if rs == nil {
+
+		rs, err = createCFOriginEntrypointRuleset(
+			token,
+			zoneID,
+		)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	exists := findRuleByRef(
+		rs,
+		ref,
+	)
+
+	if exists == nil {
+
+		fmt.Println(
+			"Cloudflare Origin Rule 不存在，创建:",
+			ref,
+		)
+
+		return createOriginRule(
+			token,
+			zoneID,
+			rs.ID,
+			rule,
+		)
+	}
+
+	fmt.Println(
+		"Cloudflare Origin Rule 已存在，更新:",
+		ref,
+	)
+
+	return updateOriginRule(
+		token,
+		zoneID,
+		rs.ID,
+		exists.ID,
+		rule,
+	)
+}
+func SetCFOriginPortForSubdomain(
+	token,
+	rootDomain,
+	subDomain string,
+	port int32,
+) error {
+
+	zoneID, err := getCFZoneID(
+		token,
+		rootDomain,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	hostName := cfSubdomainHost(
+		rootDomain,
+		subDomain,
+	)
+
+	rule := map[string]any{
+		"ref": cfRuleRef(
+			"set_origin_port_",
+			subDomain,
+		),
+		"description": fmt.Sprintf(
+			"Set origin port %d for %s",
+			port,
+			hostName,
+		),
+		"expression": fmt.Sprintf(
+			`http.host eq "%s"`,
+			hostName,
+		),
+		"action": "route",
+		"action_parameters": map[string]any{
+			"origin": map[string]any{
+				"port": port,
 			},
 		},
 	}
 
-	return createCFRuleset(token, zoneID, body)
+	return UpsertCFOriginRule(
+		token,
+		zoneID,
+		rule,
+	)
 }
-
 func SetCFOriginHostHeaderForSubdomain(token, rootDomain, subDomain, originHost string) error {
 	zoneID, err := getCFZoneID(token, rootDomain)
 	if err != nil {
@@ -222,24 +436,22 @@ func SetCFOriginHostHeaderForSubdomain(token, rootDomain, subDomain, originHost 
 	}
 
 	hostName := cfSubdomainHost(rootDomain, subDomain)
-	body := map[string]any{
-		"name":  "set origin host header for " + hostName,
-		"kind":  "zone",
-		"phase": cfPhaseOrigin,
-		"rules": []map[string]any{
-			{
-				"ref":         cfRuleRef("set_origin_host_header_", subDomain),
-				"description": "Set origin Host header for " + hostName,
-				"expression":  fmt.Sprintf(`http.host eq "%s"`, hostName),
-				"action":      "route",
-				"action_parameters": map[string]any{
-					"host_header": originHost,
-				},
-			},
+
+	rule := map[string]any{
+		"ref":         cfRuleRef("set_origin_host_header_", subDomain),
+		"description": "Set origin Host header for " + hostName,
+		"expression":  fmt.Sprintf(`http.host eq "%s"`, hostName),
+		"action":      "route",
+		"action_parameters": map[string]any{
+			"host_header": originHost,
 		},
 	}
 
-	return createCFRuleset(token, zoneID, body)
+	return UpsertCFOriginRule(
+		token,
+		zoneID,
+		rule,
+	)
 }
 
 func SetCFCacheRule(token, rootDomain string) error {
