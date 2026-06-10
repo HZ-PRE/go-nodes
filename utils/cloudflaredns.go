@@ -59,11 +59,12 @@ type cFDNSRecord struct {
 }
 
 type cFRule struct {
-	ID          string `json:"id"`
-	Ref         string `json:"ref"`
-	Description string `json:"description"`
-	Expression  string `json:"expression"`
-	Action      string `json:"action"`
+	ID               string                 `json:"id"`
+	Ref              string                 `json:"ref"`
+	Description      string                 `json:"description"`
+	Expression       string                 `json:"expression"`
+	Action           string                 `json:"action"`
+	ActionParameters map[string]interface{} `json:"action_parameters"`
 }
 
 type cFRuleset struct {
@@ -269,7 +270,25 @@ func findRuleByRef(ruleset *cFRuleset, ref string) *cFRule {
 	}
 	return nil
 }
+func appendHostToExpression(expression string, host string) string {
+	newCondition := fmt.Sprintf(
+		`http.host eq "%s"`,
+		host,
+	)
 
+	if strings.Contains(
+		expression,
+		newCondition,
+	) {
+		return expression
+	}
+
+	return fmt.Sprintf(
+		"(%s) or (%s)",
+		expression,
+		newCondition,
+	)
+}
 func createCFRule(token, zoneID, rulesetID string, rule map[string]any) error {
 	reqURL := cfURL(fmt.Sprintf("/zones/%s/rulesets/%s/rules", zoneID, rulesetID), nil)
 	return cfRequest(token, http.MethodPost, reqURL, rule, nil)
@@ -280,7 +299,7 @@ func updateCFRule(token, zoneID, rulesetID, ruleID string, rule map[string]any) 
 	return cfRequest(token, http.MethodPatch, reqURL, rule, nil)
 }
 
-func upsertCFOriginRule(token, zoneID string, rule map[string]any) error {
+func upsertCFOriginRule(token, zoneID, host string, rule map[string]any) error {
 	ref, _ := rule["ref"].(string)
 	if ref == "" {
 		return fmt.Errorf("cloudflare origin rule ref is empty")
@@ -305,8 +324,11 @@ func upsertCFOriginRule(token, zoneID string, rule map[string]any) error {
 	if existingRule.ID == "" {
 		return fmt.Errorf("cloudflare origin rule id is empty: %s", ref)
 	}
-
 	fmt.Println("Cloudflare Origin Rule 已存在，更新:", ref)
+	if existingRule.Expression != rule["expression"] {
+		fmt.Println("Cloudflare Origin Rule 表达式不一致，更新:", ref)
+		rule["expression"] = appendHostToExpression(existingRule.Expression, host)
+	}
 	return updateCFRule(token, zoneID, ruleset.ID, existingRule.ID, rule)
 }
 
@@ -331,7 +353,7 @@ func SetCFOriginPortForSubdomain(token, rootDomain, subDomain string, port int32
 			},
 		},
 	}
-	return upsertCFOriginRule(token, zoneID, rule)
+	return upsertCFOriginRule(token, zoneID, hostName, rule)
 }
 
 func SetCFOriginHostHeaderForSubdomain(token, rootDomain, subDomain, originHost string) error {
@@ -354,7 +376,7 @@ func SetCFOriginHostHeaderForSubdomain(token, rootDomain, subDomain, originHost 
 			"host_header": originHost,
 		},
 	}
-	return upsertCFOriginRule(token, zoneID, rule)
+	return upsertCFOriginRule(token, zoneID, hostName, rule)
 }
 
 func SetCFCacheRule(token, rootDomain string) error {
