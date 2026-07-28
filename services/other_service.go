@@ -444,6 +444,13 @@ func YCIpBC(errIpArr map[string]string, isSend bool) bool {
 		sem <- struct{}{}
 		go func(ip, host, port, name string) {
 			ok := false
+			if !utils.IsIP(host) {
+				ips, err := utils.GetIPv4(host)
+				if err != nil {
+					return
+				}
+				host = ips[0]
+			}
 			for _, u := range cfg.Node.URL {
 				if r, _ := utils.YCIpNelNet(fmt.Sprintf("%s/%s/%s", u, host, port)); r {
 					ok = true

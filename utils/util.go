@@ -159,11 +159,32 @@ func SendTelegramMessage(botToken, chatID, message string) error {
 	return nil
 }
 
-var httpClient = &http.Client{Timeout: 5 * time.Second}
+var httpClient = &http.Client{
+	Timeout: 10 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:          200,
+		MaxIdleConnsPerHost:   50,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 20 * time.Second,
+		DisableKeepAlives:     false,
+	},
+}
 var telegramHTTPClient = &http.Client{Timeout: 10 * time.Second}
 
 func YCIpNelNet(url string) (bool, error) {
-	resp, err := httpClient.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set(
+		"User-Agent",
+		"Mozilla/5.0",
+	)
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return false, err
 	}
@@ -172,6 +193,23 @@ func YCIpNelNet(url string) (bool, error) {
 		return false, fmt.Errorf("url:%s status code: %d", url, resp.StatusCode)
 	}
 	return true, nil
+}
+func IsIP(s string) bool {
+	return net.ParseIP(s) != nil
+}
+func GetIPv4(domain string) ([]string, error) {
+	ips, err := net.LookupIP(domain)
+	if err != nil {
+		return nil, err
+	}
+	var result []string
+
+	for _, ip := range ips {
+		if ipv4 := ip.To4(); ipv4 != nil {
+			result = append(result, ipv4.String())
+		}
+	}
+	return result, nil
 }
 func GetLinuxToDevice(host, user, password, keyPath string) (string, error) {
 	cmd := `if command -v ip >/dev/null 2>&1; then ip route | awk '/default/ {print $5; exit}'; else route -n | awk '/^0.0.0.0/ {print $8; exit}'; fi`

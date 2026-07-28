@@ -170,9 +170,17 @@ func (s *service) GetNodeNelNet() (map[string]uint, error) {
 }
 
 func (s *service) SelNodeNelNet(ip, prot string) (map[string]any, error) {
-	result, err := utils.IpNelNet(ip, prot)
+	host := ip
+	if !utils.IsIP(host) {
+		ips, err := utils.GetIPv4(host)
+		if err != nil {
+			return nil, err
+		}
+		host = ips[0]
+	}
+	result, err := utils.IpNelNet(host, prot)
 	if err != nil {
-		result = YCIpBC(map[string]string{fmt.Sprintf("%s:%s", ip, prot): ""}, false)
+		result = YCIpBC(map[string]string{fmt.Sprintf("%s:%s", host, prot): ""}, false)
 		if !result {
 			err = fmt.Errorf("probe failed for %s:%s", ip, prot)
 		}
@@ -207,7 +215,15 @@ func (s *service) NodeNelNet() error {
 			if p == "0" {
 				p = "80"
 			}
-			ok, _ := utils.IpNelNet(host, p)
+			ip := host
+			if !utils.IsIP(ip) {
+				ips, err := utils.GetIPv4(ip)
+				if err != nil {
+					return
+				}
+				ip = ips[0]
+			}
+			ok, _ := utils.IpNelNet(ip, p)
 			ch <- probeResult{name: app + "_" + name, ip: host, port: p, success: ok}
 			<-sem
 		}(item.Name, item.Host, item.App, item.Port)
