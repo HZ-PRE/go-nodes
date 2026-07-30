@@ -14,6 +14,7 @@ import (
 	"github.com/go-acme/lego/challenge"
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
+	"github.com/go-acme/lego/v4/challenge/dns01"
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/providers/dns/alidns"
 	"github.com/go-acme/lego/v4/providers/dns/baiducloud"
@@ -112,11 +113,15 @@ func GetCertificate(t, domain, email, id, secret string) (*certificate.Resource,
 		return nil, err
 	}
 
-	err = client.Challenge.SetDNS01Provider(provider)
+	err = client.Challenge.SetDNS01Provider(
+		provider,
+		dns01.AddDNSTimeout(
+			60*time.Second,
+		),
+	)
 	if err != nil {
 		return nil, err
 	}
-
 	reg, err := client.Registration.Register(registration.RegisterOptions{
 		TermsOfServiceAgreed: true,
 	})
