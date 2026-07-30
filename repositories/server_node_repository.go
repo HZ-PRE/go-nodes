@@ -52,7 +52,7 @@ func (r *repository) GetServerNodesV1() ([]vo.ServerNodeVo, error) {
 }
 func (r *repository) GetServerNodesById(id string) ([]vo.ServerNodeVo, error) {
 	rows := make([]vo.ServerNodeVo, 0)
-	query := "SELECT s.host as in_ip,n.out_ip,n.in_ip_port,n.in_ip_pwd,n.in_ip_user,n.out_ip_port,n.out_ip_pwd,n.out_ip_user,s.node_id,s.app as zz_app,s.method,s.name as names FROM server_nodes n left  JOIN servers s ON n.out_ip = s.out_host AND (s.parent_id is NULL or s.parent_id =0) and s.updated_at >= now() - INTERVAL '2 minute' WHERE s.node_id is not null AND n.id = ?"
+	query := "SELECT s.host as in_ip,n.out_ip,n.in_ip_port,n.in_ip_pwd,n.in_ip_user,n.out_ip_port,n.out_ip_pwd,n.out_ip_user,s.node_id,s.app as zz_app,s.method,s.name as names FROM server_nodes n left  JOIN servers s ON n.out_ip = s.out_host AND (s.parent_id is NULL or s.parent_id =0) and s.updated_at >= now() - INTERVAL '2 minute' WHERE s.node_id is not null AND n.id = ? AND s.method like 'xray%'"
 	err := database.DB.Raw(query, id).Scan(&rows).Error
 	return rows, err
 }
