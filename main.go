@@ -33,10 +33,6 @@ func init() {
 }
 
 func main() {
-	os.Setenv(
-		"LEGO_DNS_RESOLVERS",
-		"119.29.29.29:53,114.114.114.114:53,223.5.5.5:53,1.1.1.1:53",
-	)
 	task, engine := InitApp()
 
 	srv := &http.Server{
