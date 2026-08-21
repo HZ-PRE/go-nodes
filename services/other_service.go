@@ -83,10 +83,13 @@ func (s *service) textServerHostBySslAt() error {
 	}
 	return nil
 }
-func (s *service) uploadCDNDomainCert() error {
+func (s *service) UploadCDNDomainCert() error {
 	suppliers, err := s.repo.GetServerHostBySslAt(10)
 	if err != nil {
 		return err
+	}
+	if len(suppliers) == 0 {
+		return fmt.Errorf("DomainCert no found")
 	}
 	parentIds := make([]int, 0)
 	for _, supplier := range suppliers {
@@ -102,7 +105,7 @@ func (s *service) uploadCDNDomainCert() error {
 	}
 	parentMap := make(map[int]vo.ServerHostVo)
 	for _, parentSupplier := range parentSuppliers {
-		parentMap[parentSupplier.ParentID] = parentSupplier
+		parentMap[parentSupplier.ID] = parentSupplier
 	}
 	cfg := config.AppConfig
 	now := time.Now()

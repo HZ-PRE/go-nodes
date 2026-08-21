@@ -65,6 +65,7 @@ type Service interface {
 	GetServerSupplierApiBySupplier(supplier string, cdn int) ([]models.ServerSupplierApi, error)
 	ServerSupplierApiDel(id int) error
 	PostServerDomain(hosts models.ServerHost) error
+	UploadCDNDomainCert() error
 }
 
 type service struct {
@@ -81,7 +82,6 @@ func (s *service) TaskDay() {
 	s.repo.ServerDel(time.Now().Add(-60 * time.Minute))
 	s.repo.ServerStatTjYesterday()
 	s.textServerHostBySslAt()
-	s.uploadCDNDomainCert()
 }
 func (s *service) TaskHour(before time.Time) error {
 	tjHMu.Lock()

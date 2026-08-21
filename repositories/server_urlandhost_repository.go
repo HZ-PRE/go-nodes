@@ -49,14 +49,20 @@ func (r *repository) GetServerHostByApp(app string) ([]models.ServerHost, error)
 	return rows, err
 }
 func (r *repository) GetServerHostBySslAt(day int) ([]vo.ServerHostVo, error) {
-	rows := make([]vo.ServerHostVo, 0)
-	query := "SELECT h.id,h.scope,h.domain,h.parent_id,h.origin_domain,s.key,s.secret,s.supplier_account,s.supplier FROM server_hosts as h INNER JOIN server_supplier_apis as s on h.supplier_id=s.id and h.ssl_at<NOW() + INTERVAL '? day' and h.ssl_at>NOW() - INTERVAL '1 day' and h.parent_id>0 and h.is_self=1 and (h.scope =0 or (h.scope>0 and h.beian=1))"
-	err := database.DB.Raw(query, day).Scan(&rows).Error
+	var rows []vo.ServerHostVo
+	db := database.DB.Table("server_hosts h").
+		Select("h.id, h.scope, h.domain, h.parent_id, h.origin_domain, s.key, s.secret, s.supplier_account, s.supplier").
+		Joins("INNER JOIN server_supplier_apis s ON h.supplier_id = s.id").
+		Where("h.ssl_at < NOW() + INTERVAL '1 day' * ?", day).
+		Where("h.ssl_at > NOW() - INTERVAL '1 day'").
+		Where("h.parent_id > 0 AND h.is_self = 1").
+		Where("h.scope = 0 OR (h.scope > 0 AND h.beian = 1)")
+	err := db.Scan(&rows).Error
 	return rows, err
 }
 func (r *repository) GetServerHostByParentId(parentIds []int) ([]vo.ServerHostVo, error) {
 	rows := make([]vo.ServerHostVo, 0)
-	query := "SELECT h.id,h.scope,h.domain,h.parent_id,h.origin_domain,s.key,s.secret,s.supplier_account,s.supplier FROM server_hosts as h INNER JOIN server_supplier_apis as s on h.supplier_id=s.id WHERE h.parent_id IN ?"
+	query := "SELECT h.id,h.scope,h.domain,h.parent_id,h.origin_domain,s.key,s.secret,s.supplier_account,s.supplier FROM server_hosts as h INNER JOIN server_supplier_apis as s on h.supplier_id=s.id WHERE h.id IN ?"
 	err := database.DB.Raw(query, parentIds).Scan(&rows).Error
 	return rows, err
 }

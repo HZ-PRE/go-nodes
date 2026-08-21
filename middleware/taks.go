@@ -59,7 +59,12 @@ func (t *ServerTask) Start() {
 		t.svc.TaskDay()
 		log.Println("[task] daily cache cleared")
 	})))
-
+	// 每天凌晨6点升级证书
+	_, _ = t.cron.AddJob("0 30 5 * * *", cron.NewChain(cron.SkipIfStillRunning(cron.PrintfLogger(log.Default()))).Then(cron.FuncJob(func() {
+		if err := t.svc.UploadCDNDomainCert(); err != nil {
+			log.Printf("[task] daily Certificates upgraded error: %v", err)
+		}
+	})))
 	t.cron.Start()
 	log.Printf("[task] started (retention=%d days)", retentionDays)
 }
