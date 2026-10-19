@@ -12,11 +12,13 @@ import (
 var (
 	errUrlMap = make(map[string]uint)
 	errIpMap  = make(map[string]uint)
+	domainMap = make(map[string]any)
 	tjMap     = make(map[string]any)
 	tjHMap    = make(map[string]any)
 	errIpMu   sync.RWMutex
 	tjMu      sync.RWMutex
 	tjHMu     sync.RWMutex
+	domainMu  sync.RWMutex
 )
 
 type Service interface {

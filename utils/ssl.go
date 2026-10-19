@@ -115,9 +115,9 @@ func GetCertificate(t, domain, email, id, secret string) (*certificate.Resource,
 
 	err = client.Challenge.SetDNS01Provider(
 		provider,
-		dns01.AddDNSTimeout(
-			60*time.Second,
-		),
+		dns01.AddDNSTimeout(60*time.Second),
+		dns01.DisableAuthoritativeNssPropagationRequirement(), // 跳过严格的传播检查
+		// dns01.AddRecursiveNameservers(dns01.ParseNameservers([]string{"127.0.0.1:53"})),
 	)
 	if err != nil {
 		return nil, err
@@ -154,53 +154,57 @@ func GetCertExpireTime(certPEM []byte) (time.Time, error) {
 
 	return cert.NotAfter, nil
 }
-func UploadCDNCert(dns DNSRecord) (time.Time, error) {
-	cert, err := GetCertificate(dns.T, dns.Domain, dns.ParentEmail, dns.ParentKey, dns.ParentSecret)
-	if err != nil {
-		if strings.Contains(err.Error(), "already issued for this exact set of identifiers in the last") {
-			return time.Time{}, nil
+func UploadCDNCert(dns DNSRecord, expireTime time.Time, certificate, privateKey string) (time.Time, string, string, error) {
+	if expireTime.IsZero() || certificate == "" || privateKey == "" {
+		cert, err := GetCertificate(dns.T, dns.Domain, dns.ParentEmail, dns.ParentKey, dns.ParentSecret)
+		if err != nil {
+			if strings.Contains(err.Error(), "already issued for this exact set of identifiers in the last") {
+				return time.Time{}, "", "", nil
+			}
+			return time.Time{}, "", "", fmt.Errorf("无法获取证书:%s", err)
 		}
-		return time.Time{}, fmt.Errorf("无法获取证书:%s", err)
+		certificate = string(cert.Certificate)
+		privateKey = string(cert.PrivateKey)
+		expireTime, err = GetCertExpireTime(cert.Certificate)
+		if err != nil {
+			return time.Time{}, "", "", err
+		}
 	}
 	switch dns.Tc {
 	case "ali":
 		certName := strings.ReplaceAll(dns.Domain, ".", "_") + fmt.Sprintf("-%d%02d%02d", dns.NowTime.Year(), dns.NowTime.Month(), dns.NowTime.Day())
-		err := UploadAliCDNCert(dns.Key, dns.Secret, dns.Domain, certName, string(cert.Certificate), string(cert.PrivateKey))
+		err := UploadAliCDNCert(dns.Key, dns.Secret, dns.Domain, certName, certificate, privateKey)
 		if err != nil {
 			if strings.Contains(err.Error(), "CertNameAlreadyExists") {
-				return time.Time{}, nil
+				return expireTime, certificate, privateKey, nil
 			}
-			return time.Time{}, fmt.Errorf("无法将证书上传到CDN:%s", err)
+			return expireTime, certificate, privateKey, fmt.Errorf("无法将证书上传到CDN:%s", err)
 		}
 	case "tencent":
 		certName := strings.ReplaceAll(dns.Domain, ".", "_") + "_letsencrypt"
-		err := UploadTencentCDNCert(dns, certName, string(cert.Certificate), string(cert.PrivateKey))
+		err := UploadTencentCDNCert(dns, certName, certificate, privateKey)
 		if err != nil {
-			return time.Time{}, fmt.Errorf("无法将证书上传到CDN:%s", err)
+			return expireTime, certificate, privateKey, fmt.Errorf("无法将证书上传到CDN:%s", err)
 		}
 	case "huawei":
 		certName := strings.ReplaceAll(dns.Domain, ".", "_")
-		err := UploadHuaweiCDNCert(dns, certName, string(cert.Certificate), string(cert.PrivateKey))
+		err := UploadHuaweiCDNCert(dns, certName, certificate, privateKey)
 		if err != nil {
-			return time.Time{}, fmt.Errorf("无法将证书上传到CDN:%s", err)
+			return expireTime, certificate, privateKey, fmt.Errorf("无法将证书上传到CDN:%s", err)
 		}
 	case "baidu":
-		return time.Time{}, fmt.Errorf("百度云DNS不支持创建证书")
+		return expireTime, certificate, privateKey, fmt.Errorf("百度云DNS不支持创建证书")
 	case "ucloud":
 		certName := strings.ReplaceAll(dns.Domain, ".", "_") + "_letsencrypt"
-		err := UploadUCloudCDNCert(dns, certName, string(cert.Certificate), string(cert.PrivateKey))
+		err := UploadUCloudCDNCert(dns, certName, certificate, privateKey)
 		if err != nil {
-			return time.Time{}, fmt.Errorf("无法将证书上传到CDN:%s", err)
+			return expireTime, certificate, privateKey, fmt.Errorf("无法将证书上传到CDN:%s", err)
 		}
 	case "namesilo":
-		return time.Time{}, fmt.Errorf("namesilo云DNS不支持创建证书")
+		return expireTime, certificate, privateKey, fmt.Errorf("namesilo云DNS不支持创建证书")
 	case "jdcloud":
-		return time.Time{}, fmt.Errorf("京东云DNS不支持创建证书")
+		return expireTime, certificate, privateKey, fmt.Errorf("京东云DNS不支持创建证书")
 	}
 
-	expireTime, err := GetCertExpireTime(cert.Certificate)
-	if err != nil {
-		return time.Time{}, err
-	}
-	return expireTime, nil
+	return expireTime, certificate, privateKey, nil
 }

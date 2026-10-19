@@ -155,43 +155,46 @@ func (s *service) UploadCDNDomainCert() error {
 		if utils.IsEmail(parentSupplier.SupplierAccount) {
 			dns.ParentEmail = parentSupplier.SupplierAccount
 		}
-		switch supplier.Supplier {
-		case "ali":
-			err = utils.PostAliCdnDomain(dns)
-			if err != nil {
-				log.Printf("%s 阿里 CDN 源站创建更新失败:%s", supplier.Domain, err)
-				continue
-			}
-		case "tencent":
-			err = utils.PostTencentCDNAndDNS(dns)
-			if err != nil {
-				log.Printf("%s 腾讯 CDN 源站创建更新失败:%s", supplier.Domain, err)
-				continue
-			}
-		case "huawei":
-			err = utils.PostHuaweiCdnDomain(dns)
-			if err != nil {
-				log.Printf("%s 华为 CDN 源站创建更新失败:%s", supplier.Domain, err)
-				continue
-			}
-		case "baidu":
-			continue
-		case "ucloud":
-			continue
-		case "cloudflare":
-			continue
-		case "namesilo":
-			continue
-		case "jdcloud":
-			continue
-		}
-		time, err := utils.UploadCDNCert(dns)
+		// switch supplier.Supplier {
+		// case "ali":
+		// 	err = utils.PostAliCdnDomain(dns)
+		// 	if err != nil {
+		// 		log.Printf("%s 阿里 CDN 源站创建更新失败:%s", supplier.Domain, err)
+		// 		continue
+		// 	}
+		// case "tencent":
+		// 	err = utils.PostTencentCDNAndDNS(dns)
+		// 	if err != nil {
+		// 		log.Printf("%s 腾讯 CDN 源站创建更新失败:%s", supplier.Domain, err)
+		// 		continue
+		// 	}
+		// case "huawei":
+		// 	err = utils.PostHuaweiCdnDomain(dns)
+		// 	if err != nil {
+		// 		log.Printf("%s 华为 CDN 源站创建更新失败:%s", supplier.Domain, err)
+		// 		continue
+		// 	}
+		// case "baidu":
+		// 	continue
+		// case "ucloud":
+		// 	continue
+		// case "cloudflare":
+		// 	continue
+		// case "namesilo":
+		// 	continue
+		// case "jdcloud":
+		// 	continue
+		// }
+		time, certificate, privateKey, err := utils.UploadCDNCert(dns, supplier.NewSslAt, supplier.Certificate, supplier.PrivateKey)
 		if err != nil {
 			log.Printf("%s 上传证书失败:%s", supplier.Domain, err)
+			if !time.IsZero() {
+				s.repo.PutServerHostById(supplier.ID, supplier.SslAt, time, certificate, privateKey)
+			}
 			continue
 		}
 		if !time.IsZero() {
-			s.repo.PutServerHostById(supplier.ID, time)
+			s.repo.PutServerHostById(supplier.ID, time, supplier.SslAt, certificate, privateKey)
 		}
 	}
 	return nil
@@ -255,80 +258,105 @@ func (s *service) PostServerDomain(hosts models.ServerHost) error {
 	}
 	isSsl := true
 	var retErr error
-	switch supplier.Supplier {
-	case "ali":
-		err = utils.PostAliCdnDomain(dns)
-		if err != nil {
-			return fmt.Errorf("阿里 CDN 源站创建更新失败:%s", err)
-		}
-	case "tencent":
-		err = utils.PostTencentCDNAndDNS(dns)
-		if err != nil {
-			return fmt.Errorf("腾讯 CDN 源站创建更新失败:%s", err)
-		}
-	case "huawei":
-		err = utils.PostHuaweiCdnDomain(dns)
-		if err != nil {
-			return fmt.Errorf("华为 CDN 源站创建更新失败:%s", err)
-		}
-	case "baidu":
-		return fmt.Errorf("百度云DNS不支持API添加TXT记录，无法验证CDN域名所有者")
-	case "ucloud":
-		// err := utils.PostUCloudCDNAndDNS(dns)
-		// if err != nil {
-		// 	return fmt.Errorf("UCloud CDN 源站创建更新失败:%s", err)
-		// }
-		return fmt.Errorf("ucloudDNS不支持API添加TXT记录，无法验证CDN域名所有者")
-	case "cloudflare":
-		if strings.Contains(dns.SubDomain, ".") {
-			return fmt.Errorf("cloudflare 域名代理不支持添加二级以上的域名，请使用二级域名")
-		}
-		dns.T = supplier.Supplier
-		if dns.IsDomain {
-			dns.RecordType = "CNAME"
-		} else {
-			dns.RecordType = "TXT"
-		}
-		dns.Proxied = true
-		dns.RR = dns.SubDomain
-		dns.Content = dns.OriginDomain
-		_, err := utils.DnsUpsertRecord(dns)
-		if err != nil {
-			return fmt.Errorf("cloudflare 域名代理创建更新失败:%s", err)
-		}
-		err = utils.SetCFCacheRule(dns.ParentKey, rootDomain)
-		if err != nil {
-			return fmt.Errorf("cloudflare gateway规则创建失败:%s", err)
-		}
-		err = utils.SetCFRateLimitRule(dns.ParentKey, rootDomain)
-		if err != nil {
-			return fmt.Errorf("cloudflare 速率限制规则创建失败:%s", err)
-		}
-		err = utils.SetCFSSLMode(dns.ParentKey, rootDomain, "flexible")
-		if err != nil {
-			return fmt.Errorf("cloudflare SSL模式配置失败:%s", err)
-		}
-		if 443 != originPort && 80 != originPort {
-			err = utils.SetCFOriginPortForSubdomain(dns.ParentKey, rootDomain, dns.SubDomain, int32(originPort))
+	domainMu.Lock()
+	dnsStep, ok := tjMap[hosts.Domain]
+	domainMu.Unlock()
+	if !ok {
+		switch supplier.Supplier {
+		case "ali":
+			err = utils.PostAliCdnDomain(dns)
 			if err != nil {
-				return fmt.Errorf("访问源站端口（%d）配置失败:%s", originPort, err)
+				return fmt.Errorf("阿里 CDN 源站创建更新失败:%s", err)
 			}
+		case "tencent":
+			err = utils.PostTencentCDNAndDNS(dns)
+			if err != nil {
+				return fmt.Errorf("腾讯 CDN 源站创建更新失败:%s", err)
+			}
+		case "huawei":
+			err = utils.PostHuaweiCdnDomain(dns)
+			if err != nil {
+				return fmt.Errorf("华为 CDN 源站创建更新失败:%s", err)
+			}
+		case "baidu":
+			return fmt.Errorf("百度云DNS不支持API添加TXT记录，无法验证CDN域名所有者")
+		case "ucloud":
+			// err := utils.PostUCloudCDNAndDNS(dns)
+			// if err != nil {
+			// 	return fmt.Errorf("UCloud CDN 源站创建更新失败:%s", err)
+			// }
+			return fmt.Errorf("ucloudDNS不支持API添加TXT记录，无法验证CDN域名所有者")
+		case "cloudflare":
+			if strings.Contains(dns.SubDomain, ".") {
+				return fmt.Errorf("cloudflare 域名代理不支持添加二级以上的域名，请使用二级域名")
+			}
+			dns.T = supplier.Supplier
+			if dns.IsDomain {
+				dns.RecordType = "CNAME"
+			} else {
+				dns.RecordType = "TXT"
+			}
+			dns.Proxied = true
+			dns.RR = dns.SubDomain
+			dns.Content = dns.OriginDomain
+			_, err := utils.DnsUpsertRecord(dns)
+			if err != nil {
+				return fmt.Errorf("cloudflare 域名代理创建更新失败:%s", err)
+			}
+			err = utils.SetCFCacheRule(dns.ParentKey, rootDomain)
+			if err != nil {
+				return fmt.Errorf("cloudflare gateway规则创建失败:%s", err)
+			}
+			err = utils.SetCFRateLimitRule(dns.ParentKey, rootDomain)
+			if err != nil {
+				return fmt.Errorf("cloudflare 速率限制规则创建失败:%s", err)
+			}
+			err = utils.SetCFSSLMode(dns.ParentKey, rootDomain, "flexible")
+			if err != nil {
+				return fmt.Errorf("cloudflare SSL模式配置失败:%s", err)
+			}
+			if 443 != originPort && 80 != originPort {
+				err = utils.SetCFOriginPortForSubdomain(dns.ParentKey, rootDomain, dns.SubDomain, int32(originPort))
+				if err != nil {
+					return fmt.Errorf("访问源站端口（%d）配置失败:%s", originPort, err)
+				}
+			}
+			err = utils.SetCFOriginHostHeaderForSubdomain(dns.ParentKey, rootDomain, dns.SubDomain, dns.OriginDomain)
+			if err != nil {
+				retErr = fmt.Errorf("此错误可忽略,（域名已经成功代理）cloudflare origin host header配置失败(套餐权限不足，仅Enterprise套餐提供。升级计划来启用此功能)，请手动去源服务器配置添加代理域名:%s", err)
+			}
+			isSsl = false
+		case "namesilo":
+			return fmt.Errorf("namesilo云DNS不支持API添加TXT记录，无法验证CDN域名所有者")
+		case "jdcloud":
+			return fmt.Errorf("京东云DNS不支持API添加TXT记录，无法验证CDN域名所有者")
 		}
-		err = utils.SetCFOriginHostHeaderForSubdomain(dns.ParentKey, rootDomain, dns.SubDomain, dns.OriginDomain)
-		if err != nil {
-			retErr = fmt.Errorf("此错误可忽略,（域名已经成功代理）cloudflare origin host header配置失败(套餐权限不足，仅Enterprise套餐提供。升级计划来启用此功能)，请手动去源服务器配置添加代理域名:%s", err)
+		dnsStep = map[string]interface{}{
+			"private_key": "",
+			"certificate": "",
+			"new_ssl_at":  time.Now(),
 		}
-		isSsl = false
-	case "namesilo":
-		return fmt.Errorf("namesilo云DNS不支持API添加TXT记录，无法验证CDN域名所有者")
-	case "jdcloud":
-		return fmt.Errorf("京东云DNS不支持API添加TXT记录，无法验证CDN域名所有者")
+		domainMu.Lock()
+		tjMap[hosts.Domain] = dnsStep
+		domainMu.Unlock()
 	}
 	if isSsl {
-		time, err := utils.UploadCDNCert(dns)
+		time, certificate, privateKey, err := utils.UploadCDNCert(dns, dnsStep.(map[string]interface{})["new_ssl_at"].(time.Time), dnsStep.(map[string]interface{})["certificate"].(string), dnsStep.(map[string]interface{})["private_key"].(string))
 		if err != nil {
+			if certificate != "" && privateKey != "" {
+				domainMu.Lock()
+				tjMap[hosts.Domain] = map[string]interface{}{
+					"private_key": privateKey,
+					"certificate": certificate,
+					"new_ssl_at":  time,
+				}
+				domainMu.Unlock()
+			}
 			return err
 		}
+		domainMu.Lock()
+		delete(tjMap, hosts.Domain)
+		domainMu.Unlock()
 		if time.IsZero() {
 			time = now.AddDate(0, 0, 85)
 		}

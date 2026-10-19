@@ -57,7 +57,7 @@ type Repository interface {
 	GetServerSupplierApiByIdV1(id int) (models.ServerSupplierApi, error)
 	GetServerHostByParentId(parentIds []int) ([]vo.ServerHostVo, error)
 	GetServerHostBySslAt(day int) ([]vo.ServerHostVo, error)
-	PutServerHostById(id int, ssl_at time.Time) error
+	PutServerHostById(id int, ssl_at, new_ssl_at time.Time, certificate, privateKey string) error
 }
 
 type repository struct{}

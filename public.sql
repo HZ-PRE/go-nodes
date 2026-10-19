@@ -12,7 +12,7 @@
  Target Server Version : 160008 (160008)
  File Encoding         : 65001
 
- Date: 26/05/2026 10:25:36
+ Date: 19/10/2026 14:48:56
 */
 
 
@@ -118,13 +118,17 @@ CACHE 1
   "is_self" int8 NOT NULL DEFAULT 0,
   "origin_domain" varchar(100) COLLATE "pg_catalog"."default",
   "scope" int2 NOT NULL DEFAULT '-1'::integer,
-  "beian" int2 NOT NULL DEFAULT 0
+  "beian" int2 NOT NULL DEFAULT 0,
+  "certificate" bytea,
+  "private_key" bytea,
+  "new_ssl_at" timestamp(6)
 )
 ;
 COMMENT ON COLUMN "public"."server_hosts"."app" IS 'app类型';
 COMMENT ON COLUMN "public"."server_hosts"."ssl_at" IS '证书有效期';
 COMMENT ON COLUMN "public"."server_hosts"."scope" IS '0全球，不包含中国内地,1全球,2仅中国内地,-1未购买套餐';
 COMMENT ON COLUMN "public"."server_hosts"."beian" IS '是否备案';
+COMMENT ON COLUMN "public"."server_hosts"."new_ssl_at" IS '最新证书有效期';
 
 -- ----------------------------
 -- Table structure for server_logs
@@ -303,21 +307,21 @@ $BODY$
 -- ----------------------------
 ALTER SEQUENCE "public"."server_bi_tables_id_seq"
 OWNED BY "public"."server_bi_tables"."id";
-SELECT setval('"public"."server_bi_tables_id_seq"', 286365, true);
+SELECT setval('"public"."server_bi_tables_id_seq"', 1908349, true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."server_urls_copy1_id_seq"
 OWNED BY "public"."server_hosts"."id";
-SELECT setval('"public"."server_urls_copy1_id_seq"', 168, true);
+SELECT setval('"public"."server_urls_copy1_id_seq"', 529, true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."server_urls_copy1_id_seq1"
 OWNED BY "public"."server_supplier_apis"."id";
-SELECT setval('"public"."server_urls_copy1_id_seq1"', 24, true);
+SELECT setval('"public"."server_urls_copy1_id_seq1"', 26, true);
 
 -- ----------------------------
 -- Alter sequences owned by

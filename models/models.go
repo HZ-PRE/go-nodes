@@ -85,6 +85,9 @@ type ServerHost struct {
 	IsSelf          uint8     `json:"is_self"`
 	Scope           int       `json:"scope"`
 	Beian           int       `json:"beian"`
+	Certificate     string    `json:"certificate"`
+	PrivateKey      string    `json:"private_key"`
+	NewSslAt        time.Time `json:"new_ssl_at"`
 }
 type ServerSupplierApi struct {
 	ID              int    `json:"id"`
