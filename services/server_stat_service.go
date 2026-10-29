@@ -176,6 +176,9 @@ func (s *service) SelNodeNelNet(ip, prot string) (map[string]any, error) {
 		if err != nil {
 			return nil, err
 		}
+		if len(ips) == 0 {
+			return nil, fmt.Errorf("no IPv4 address for %s", host)
+		}
 		host = ips[0]
 	}
 	result, err := utils.IpNelNet(host, prot)
@@ -183,6 +186,8 @@ func (s *service) SelNodeNelNet(ip, prot string) (map[string]any, error) {
 		result = YCIpBC(map[string]string{fmt.Sprintf("%s:%s", host, prot): ""}, false)
 		if !result {
 			err = fmt.Errorf("probe failed for %s:%s", ip, prot)
+		} else {
+			err = nil
 		}
 	}
 	return map[string]any{"ip": ip, "prot": prot, "result": result}, err
@@ -204,35 +209,27 @@ func (s *service) NodeNelNet() error {
 		success bool
 	}
 
-	maxWorkers := utils.ProbeWorkers()
-	sem := make(chan struct{}, maxWorkers)
-	ch := make(chan probeResult, len(servers))
-
-	for _, item := range servers {
-		sem <- struct{}{}
-		go func(name, host, app string, port uint) {
-			p := strconv.FormatUint(uint64(port), 10)
-			if p == "0" {
-				p = "80"
+	results := probeAll(servers, func(item models.Server) probeResult {
+		p := strconv.FormatUint(uint64(item.Port), 10)
+		if p == "0" {
+			p = "80"
+		}
+		r := probeResult{name: item.App + "_" + item.Name, ip: item.Host, port: p}
+		ip := item.Host
+		if !utils.IsIP(ip) {
+			ips, err := utils.GetIPv4(ip)
+			if err != nil || len(ips) == 0 {
+				return r
 			}
-			ip := host
-			if !utils.IsIP(ip) {
-				ips, err := utils.GetIPv4(ip)
-				if err != nil {
-					return
-				}
-				ip = ips[0]
-			}
-			ok, _ := utils.IpNelNet(ip, p)
-			ch <- probeResult{name: app + "_" + name, ip: host, port: p, success: ok}
-			<-sem
-		}(item.Name, item.Host, item.App, item.Port)
-	}
+			ip = ips[0]
+		}
+		r.success, _ = utils.IpNelNet(ip, p)
+		return r
+	})
 
 	isErrIp := false
 	errIpArr := make(map[string]string)
-	for range servers {
-		r := <-ch
+	for _, r := range results {
 		key := fmt.Sprintf("%s:%s", r.ip, r.port)
 		errIpMu.Lock()
 		if r.success {

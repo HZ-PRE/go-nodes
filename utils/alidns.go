@@ -392,11 +392,14 @@ func guessRootDomain(domainName string) string {
 	if root, err := publicsuffix.EffectiveTLDPlusOne(domainName); err == nil {
 		return root
 	}
-	parts := strings.Split(domainName, ".")
-	if len(parts) < 2 {
+	before, _, found := strings.CutLast(domainName, ".")
+	if !found {
 		return domainName
 	}
-	return strings.Join(parts[len(parts)-2:], ".")
+	if prefix, _, found := strings.CutLast(before, "."); found {
+		return domainName[len(prefix)+1:]
+	}
+	return domainName
 }
 
 func retryGetAliCDNCname(client *cdn.Client, domainName string) (string, error) {

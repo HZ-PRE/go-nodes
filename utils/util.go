@@ -74,13 +74,9 @@ func GetRootDomain(domain string) string {
 	return root
 }
 
-// 根据可用的CPU核心数返回一个工作线程数量，范围在4到NumCPU之间。如果NumCPU小于4，则返回4。
+// 按运行时可用的 CPU 配额设置并发数；网络探测至少保留 4 个 worker。
 func ProbeWorkers() int {
-	n := runtime.NumCPU()
-	if n < 4 {
-		n = 4
-	}
-	return n
+	return max(4, runtime.GOMAXPROCS(0))
 }
 func FileExists(path string) bool {
 	_, err := os.Stat(path)
@@ -167,7 +163,7 @@ var httpClient = &http.Client{
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ResponseHeaderTimeout: 20 * time.Second,
-		DisableKeepAlives:     false,
+		ForceAttemptHTTP2:     true,
 	},
 }
 var telegramHTTPClient = &http.Client{Timeout: 10 * time.Second}
@@ -189,6 +185,7 @@ func YCIpNelNet(url string) (bool, error) {
 		return false, err
 	}
 	defer resp.Body.Close()
+	// Go 1.27 会在 Close 时有限量地排空 HTTP/1 响应，复用连接无需读取整个探测页面。
 	if resp.StatusCode != 200 {
 		return false, fmt.Errorf("url:%s status code: %d", url, resp.StatusCode)
 	}

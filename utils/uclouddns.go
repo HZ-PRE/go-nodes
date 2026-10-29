@@ -82,24 +82,25 @@ func uCall(publicKey, privateKey, projectID, region string, params map[string]st
 	}
 	defer resp.Body.Close()
 
-	data, readErr := io.ReadAll(resp.Body)
-	if readErr != nil {
-		return nil, readErr
-	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		data, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, readErr
+		}
 		return nil, fmt.Errorf("ucloud http failed: status=%s action=%s body=%s", resp.Status, p["Action"], string(data))
 	}
 
 	var out uResp
-	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	// Go 1.27 的 encoding/json 已使用 v2 引擎；保留 UseNumber 避免大整数精度丢失。
+	decoder := json.NewDecoder(resp.Body)
 	decoder.UseNumber()
 	if err := decoder.Decode(&out); err != nil {
-		return nil, fmt.Errorf("ucloud response parse failed: %w body=%s", err, string(data))
+		return nil, fmt.Errorf("ucloud response parse failed: action=%s: %w", p["Action"], err)
 	}
 
 	if ret, ok := ucloudRetCode(out["RetCode"]); ok && ret != 0 {
-		return out, fmt.Errorf("ucloud api failed: action=%s ret=%v msg=%v body=%s",
-			p["Action"], out["RetCode"], out["Message"], string(data))
+		return out, fmt.Errorf("ucloud api failed: action=%s ret=%v msg=%v",
+			p["Action"], out["RetCode"], out["Message"])
 	}
 
 	return out, nil

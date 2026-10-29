@@ -1,6 +1,6 @@
 module nodes
 
-go 1.25.0
+go 1.27
 
 require (
 	github.com/alibabacloud-go/alidns-20150109/v5 v5.4.1

@@ -393,28 +393,20 @@ func (s *service) ApiNelNet() error {
 		success bool
 	}
 
-	maxWorkers := utils.ProbeWorkers()
-	sem := make(chan struct{}, maxWorkers)
-	ch := make(chan probeResult, len(urls))
-
-	for _, item := range urls {
-		sem <- struct{}{}
-		go func(id, note, url string) {
-			ok, probeErr := utils.YCIpNelNet(url)
-			ch <- probeResult{
-				note:    fmt.Sprintf("%s: (err=%v)", note, probeErr),
-				id:      id,
-				success: ok,
-			}
-			<-sem
-		}(item.ID, item.Note, item.Url)
-	}
+	results := probeAll(urls, func(item models.ServerUrl) probeResult {
+		ok, probeErr := utils.YCIpNelNet(item.Url)
+		return probeResult{
+			note:    fmt.Sprintf("%s: (err=%v)", item.Note, probeErr),
+			id:      item.ID,
+			success: ok,
+		}
+	})
 
 	var msgBuilder strings.Builder
 	hasMsg := false
 	tempErrMap := make(map[string]uint)
-	for range urls {
-		r := <-ch
+	errIpMu.Lock()
+	for _, r := range results {
 		shouldAppend := false
 		if !r.success {
 			if _, exists := errUrlMap[r.id]; !exists {
@@ -436,7 +428,6 @@ func (s *service) ApiNelNet() error {
 			hasMsg = true
 		}
 	}
-	errIpMu.Lock()
 	errUrlMap = tempErrMap
 	errIpMu.Unlock()
 	msg := msgBuilder.String()
@@ -461,45 +452,39 @@ func YCIpBC(errIpArr map[string]string, isSend bool) bool {
 		success bool
 	}
 
-	maxWorkers := utils.ProbeWorkers()
-	sem := make(chan struct{}, maxWorkers)
-	ch := make(chan probeResult, len(errIpArr))
-
+	type endpoint struct{ ip, name string }
+	endpoints := make([]endpoint, 0, len(errIpArr))
 	for ip, name := range errIpArr {
-		parts := strings.SplitN(ip, ":", 2)
-		if len(parts) != 2 {
-			// Treat malformed endpoint as skipped (not failed).
-			ch <- probeResult{ip: ip, name: name, success: true}
-			continue
-		}
-
-		host, port := parts[0], parts[1]
-		sem <- struct{}{}
-		go func(ip, host, port, name string) {
-			ok := false
-			if !utils.IsIP(host) {
-				ips, err := utils.GetIPv4(host)
-				if err != nil {
-					return
-				}
-				host = ips[0]
-			}
-			for _, u := range cfg.Node.URL {
-				if r, _ := utils.YCIpNelNet(fmt.Sprintf("%s/%s/%s", u, host, port)); r {
-					ok = true
-					break
-				}
-			}
-			ch <- probeResult{ip: ip, name: name, success: ok}
-			<-sem
-		}(ip, host, port, name)
+		endpoints = append(endpoints, endpoint{ip: ip, name: name})
 	}
+	results := probeAll(endpoints, func(item endpoint) probeResult {
+		r := probeResult{ip: item.ip, name: item.name}
+		host, port, found := strings.Cut(item.ip, ":")
+		if !found {
+			// Treat malformed endpoint as skipped (not failed).
+			r.success = true
+			return r
+		}
+		if !utils.IsIP(host) {
+			ips, err := utils.GetIPv4(host)
+			if err != nil || len(ips) == 0 {
+				return r
+			}
+			host = ips[0]
+		}
+		for _, u := range cfg.Node.URL {
+			if ok, _ := utils.YCIpNelNet(fmt.Sprintf("%s/%s/%s", u, host, port)); ok {
+				r.success = true
+				break
+			}
+		}
+		return r
+	})
 
 	var msgBuilder strings.Builder
 	hasMsg := false
 	tempErrIpMap := make(map[string]uint)
-	for range errIpArr {
-		r := <-ch
+	for _, r := range results {
 		shouldAppend := false
 
 		if !r.success {

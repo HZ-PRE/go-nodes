@@ -114,12 +114,10 @@ func newAsyncWriter(dir, prefix string, maxAge, chSize, flushSec int, zip bool, 
 	w.archiveOldLogs()
 	w.cleanup()
 
-	w.wg.Add(1)
-	go w.run()
+	w.wg.Go(w.run)
 
-	for i := 0; i < archiveWorkers; i++ {
-		w.wg.Add(1)
-		go w.archiveWorker()
+	for range archiveWorkers {
+		w.wg.Go(w.archiveWorker)
 	}
 	return w
 }
@@ -162,10 +160,7 @@ func (w *asyncWriter) writeLine(level, message string) {
 }
 
 func (w *asyncWriter) run() {
-	defer func() {
-		close(w.runDone)
-		w.wg.Done()
-	}()
+	defer close(w.runDone)
 
 	ticker := time.NewTicker(w.flushInterval)
 	defer ticker.Stop()
@@ -244,7 +239,6 @@ func (w *asyncWriter) openCurrent() error {
 }
 
 func (w *asyncWriter) archiveWorker() {
-	defer w.wg.Done()
 	for path := range w.archiveCh {
 		w.archiveFile(path)
 	}
