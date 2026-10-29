@@ -331,14 +331,16 @@ func (s *service) PostServerDomain(hosts models.ServerHost) error {
 		case "jdcloud":
 			return fmt.Errorf("京东云DNS不支持API添加TXT记录，无法验证CDN域名所有者")
 		}
-		dnsStep = map[string]interface{}{
-			"private_key": "",
-			"certificate": "",
-			"new_ssl_at":  time.Now(),
+		if isSsl {
+			dnsStep = map[string]interface{}{
+				"private_key": "",
+				"certificate": "",
+				"new_ssl_at":  time.Now(),
+			}
+			domainMu.Lock()
+			tjMap[hosts.Domain] = dnsStep
+			domainMu.Unlock()
 		}
-		domainMu.Lock()
-		tjMap[hosts.Domain] = dnsStep
-		domainMu.Unlock()
 	}
 	if isSsl {
 		time, certificate, privateKey, err := utils.UploadCDNCert(dns, dnsStep.(map[string]interface{})["new_ssl_at"].(time.Time), dnsStep.(map[string]interface{})["certificate"].(string), dnsStep.(map[string]interface{})["private_key"].(string))
