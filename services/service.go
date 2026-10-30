@@ -89,13 +89,17 @@ func (s *service) TaskHour(before time.Time) error {
 	tjHMu.Lock()
 	tjHMap = make(map[string]any)
 	tjHMu.Unlock()
+	if err := s.repo.UpdateServersNodeToInIp(); err != nil {
+		return err
+	}
 	if err := s.repo.ServerStatDeletes(before); err != nil {
 		return err
 	}
 	if err := s.repo.ServerLogDeletes(before); err != nil {
 		return err
 	}
-	if err := s.repo.UpdateServersNodeToInIp(); err != nil {
+	now := time.Now()
+	if err := s.repo.ServerDeletes(now.Add(-10*time.Minute), ""); err != nil {
 		return err
 	}
 	return s.repo.ServerStatTjHour()

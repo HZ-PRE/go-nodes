@@ -22,7 +22,14 @@ func (r *repository) CreateServers(servers []models.Server) error {
 }
 func (r *repository) ServerDeletes(time time.Time, app string) error {
 	for {
-		result := database.DB.Exec("DELETE FROM servers WHERE updated_at < $1 AND app = $2", time, app)
+		sql := "DELETE FROM servers WHERE updated_at < $1"
+		args := []any{}
+		args = append(args, time)
+		if app != "" {
+			sql += " AND app = $2"
+			args = append(args, app)
+		}
+		result := database.DB.Exec(sql, args...)
 		if result.Error != nil {
 			return result.Error
 		}
