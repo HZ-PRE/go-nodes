@@ -155,36 +155,6 @@ func (s *service) UploadCDNDomainCert() error {
 		if utils.IsEmail(parentSupplier.SupplierAccount) {
 			dns.ParentEmail = parentSupplier.SupplierAccount
 		}
-		// switch supplier.Supplier {
-		// case "ali":
-		// 	err = utils.PostAliCdnDomain(dns)
-		// 	if err != nil {
-		// 		log.Printf("%s 阿里 CDN 源站创建更新失败:%s", supplier.Domain, err)
-		// 		continue
-		// 	}
-		// case "tencent":
-		// 	err = utils.PostTencentCDNAndDNS(dns)
-		// 	if err != nil {
-		// 		log.Printf("%s 腾讯 CDN 源站创建更新失败:%s", supplier.Domain, err)
-		// 		continue
-		// 	}
-		// case "huawei":
-		// 	err = utils.PostHuaweiCdnDomain(dns)
-		// 	if err != nil {
-		// 		log.Printf("%s 华为 CDN 源站创建更新失败:%s", supplier.Domain, err)
-		// 		continue
-		// 	}
-		// case "baidu":
-		// 	continue
-		// case "ucloud":
-		// 	continue
-		// case "cloudflare":
-		// 	continue
-		// case "namesilo":
-		// 	continue
-		// case "jdcloud":
-		// 	continue
-		// }
 		time, certificate, privateKey, err := utils.UploadCDNCert(dns, supplier.NewSslAt, supplier.Certificate, supplier.PrivateKey)
 		if err != nil {
 			log.Printf("%s 上传证书失败:%s", supplier.Domain, err)

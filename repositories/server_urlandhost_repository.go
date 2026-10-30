@@ -34,16 +34,16 @@ func (r *repository) PutServerHostById(ids int, ssl_at, new_ssl_at time.Time, ce
 	body := map[string]interface{}{}
 	if ssl_at.IsZero() {
 		body = map[string]interface{}{
-			"ssl_at":      ssl_at,
+			"new_ssl_at":  new_ssl_at,
 			"certificate": certificate,
 			"private_key": privateKey,
-			"new_ssl_at":  nil,
 		}
 	} else {
 		body = map[string]interface{}{
-			"certificate": certificate,
-			"private_key": privateKey,
-			"new_ssl_at":  new_ssl_at,
+			"ssl_at":      ssl_at,
+			"certificate": nil,
+			"private_key": nil,
+			"new_ssl_at":  nil,
 		}
 	}
 	return database.DB.
@@ -66,10 +66,10 @@ func (r *repository) GetServerHostByApp(app string) ([]models.ServerHost, error)
 func (r *repository) GetServerHostBySslAt(day int) ([]vo.ServerHostVo, error) {
 	var rows []vo.ServerHostVo
 	db := database.DB.Table("server_hosts h").
-		Select("h.id, h.scope, h.domain, h.parent_id, h.origin_domain, s.key, s.secret, s.supplier_account, s.supplier,s.certificate,s.private_key,s.new_ssl_at").
+		Select("h.id, h.scope, h.domain, h.parent_id, h.origin_domain,h.certificate,h.private_key,h.new_ssl_at, s.key, s.secret, s.supplier_account, s.supplier").
 		Joins("INNER JOIN server_supplier_apis s ON h.supplier_id = s.id").
 		Where("h.ssl_at < NOW() + INTERVAL '1 day' * ?", day).
-		Where("h.ssl_at > NOW() - INTERVAL '1 day'").
+		Where("h.ssl_at > NOW() - INTERVAL '6 day'").
 		Where("h.parent_id > 0 AND h.is_self = 1").
 		Where("h.scope = 0 OR (h.scope > 0 AND h.beian = 1)")
 	err := db.Scan(&rows).Error
